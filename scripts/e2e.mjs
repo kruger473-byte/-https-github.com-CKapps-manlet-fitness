@@ -325,6 +325,82 @@ try {
     !(await page.locator("main").innerText()).includes("E2E CMS Program"),
   );
 
+  // 19c. Pricing & products: change a price, create a product, grant access.
+  await page.goto(`${BASE}/admin/pricing`, { waitUntil: "domcontentloaded" });
+  check("pricing admin renders", (await page.locator("main").innerText()).includes("Subscription plans"));
+
+  const corePlan = page.locator('details:has-text("Core")').first();
+  await corePlan.locator("summary").click();
+  await corePlan.locator('input[name="priceMonthly"]').fill("39.00");
+  await corePlan.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check("plan price saved", (await page.locator("main").innerText()).includes("Plan saved"));
+
+  await page.goto(`${BASE}/pricing`, { waitUntil: "domcontentloaded" });
+  check(
+    "price change is live on the public pricing page",
+    (await page.locator("body").innerText()).includes("$39"),
+  );
+
+  // The free tier must stay free — it is the fallback for everyone unsubscribed
+  await page.goto(`${BASE}/admin/pricing`, { waitUntil: "domcontentloaded" });
+  const freePlan = page.locator('details:has-text("Free")').first();
+  await freePlan.locator("summary").click();
+  await freePlan.locator('input[name="priceMonthly"]').fill("10.00");
+  await freePlan.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check(
+    "free plan refuses a price",
+    (await page.locator("main").innerText()).includes("must stay at zero"),
+  );
+
+  // Restore, so a repeat run starts from the seeded price
+  await page.goto(`${BASE}/admin/pricing`, { waitUntil: "domcontentloaded" });
+  const coreAgain = page.locator('details:has-text("Core")').first();
+  await coreAgain.locator("summary").click();
+  await coreAgain.locator('input[name="priceMonthly"]').fill("29.00");
+  await coreAgain.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+
+  // A product with no item selected must not be created
+  await page.goto(`${BASE}/admin/pricing`, { waitUntil: "domcontentloaded" });
+  const newProduct = page.locator('div.card:has(h3:text("New product"))');
+  await newProduct.locator('input[name="name"]').fill("E2E Broken Product");
+  await newProduct.locator('textarea[name="description"]').fill("No item selected.");
+  await newProduct.locator('input[name="price"]').fill("10.00");
+  await newProduct.locator('button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check(
+    "product without an item is rejected",
+    (await page.locator("main").innerText()).includes("Choose which item"),
+  );
+
+  // Manual grant, then confirm the member can actually open the content
+  await page.goto(`${BASE}/admin/pricing`, { waitUntil: "domcontentloaded" });
+  const grantCard = page.locator('div.card:has(h3:text("Grant access"))');
+  await grantCard.locator('input[name="email"]').fill("free@manlet.fit");
+  await grantCard
+    .locator('select[name="contentRef"]')
+    .selectOption({ label: "Elite Peaking Block" });
+  await grantCard.locator('button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check("manual grant applied", (await page.locator("main").innerText()).includes("now has access"));
+
+  const grantedCtx = await browser.newContext();
+  const granted = await grantedCtx.newPage();
+  await granted.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  await granted.fill('input[name="email"]', "free@manlet.fit");
+  await granted.fill('input[name="password"]', "password123");
+  await granted.click('form button[type="submit"]');
+  await granted.waitForURL("**/dashboard", { timeout: 20000 });
+  await granted.goto(`${BASE}/programs/elite-peaking`, { waitUntil: "domcontentloaded" });
+  const grantedText = await granted.locator("main").innerText();
+  check(
+    "manually granted member opens Elite content on a free plan",
+    !grantedText.includes("needs the Elite plan") && grantedText.includes("Squat peak"),
+  );
+  await grantedCtx.close();
+
   // 20. Per-item access: buying one program unlocks exactly that program.
   // Runs in a fresh context so this member is on the free plan throughout —
   // the point is that a grant works *without* a subscription tier.
