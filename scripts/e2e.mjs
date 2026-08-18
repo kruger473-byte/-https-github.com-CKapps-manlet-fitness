@@ -255,6 +255,76 @@ try {
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2500);
   check("bad password rejected", (await page.locator("main").innerText()).includes("did not work"));
+  // 19b. Content CMS: create real content through the admin UI, confirm members
+  // see it, then delete it so the run is repeatable.
+  page.on("dialog", (d) => void d.accept()); // DangerForm uses window.confirm
+
+  // The bad-password check above cleared the session, so sign back in.
+  await ctx.clearCookies();
+  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  await page.fill('input[name="email"]', "admin@manlet.fit");
+  await page.fill('input[name="password"]', "password123");
+  await page.click('form button[type="submit"]');
+  await page.waitForURL("**/dashboard", { timeout: 20000 });
+
+  await page.goto(`${BASE}/admin/content`, { waitUntil: "domcontentloaded" });
+  check("content hub renders", (await page.locator("main").innerText()).includes("Training programs"));
+
+  await page.goto(`${BASE}/admin/content/programs/new`, { waitUntil: "domcontentloaded" });
+  await page.fill('input[name="title"]', "E2E CMS Program");
+  await page.fill('textarea[name="description"]', "Created by the end-to-end test to prove the CMS writes real content.");
+  await page.selectOption('select[name="minTier"]', "0");
+  await page.check('input[name="isPublished"]');
+  await page.locator('form:has(input[name="title"]) button[type="submit"]').click();
+  await page.waitForURL(/\/admin\/content\/programs\/(?!new)/, { timeout: 20000 });
+  const programEditorUrl = page.url();
+  check("program created via CMS", /\/admin\/content\/programs\/c/.test(programEditorUrl));
+
+  const addSession = page.locator('div:has(> h3:text("Add a session")) form');
+  await addSession.locator('input[name="title"]').fill("E2E CMS Session");
+  await addSession.locator('input[name="durationSec"]').fill("600");
+  await addSession.locator('input[name="videoUrl"]').fill("https://example.com/v.mp4");
+  await addSession.locator('button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check("session added to program", (await page.locator("main").innerText()).includes("E2E CMS Session"));
+
+  await page.goto(`${BASE}/programs`, { waitUntil: "domcontentloaded" });
+  check("CMS program visible to members", (await page.locator("main").innerText()).includes("E2E CMS Program"));
+
+  // Unpublishing must actually hide it
+  await page.goto(`${BASE}/admin/content/programs`, { waitUntil: "domcontentloaded" });
+  const cmsRow = page.locator('div.card:has-text("E2E CMS Program")').first();
+  await cmsRow.locator('form button:text("Live")').click();
+  await page.waitForTimeout(2000);
+  await page.goto(`${BASE}/programs`, { waitUntil: "domcontentloaded" });
+  check(
+    "unpublished program hidden from members",
+    !(await page.locator("main").innerText()).includes("E2E CMS Program"),
+  );
+
+  // Validation must refuse bad input rather than saving junk
+  await page.goto(`${BASE}/admin/content/articles/new`, { waitUntil: "domcontentloaded" });
+  await page.fill('input[name="title"]', "x");
+  await page.fill('textarea[name="excerpt"]', "too short");
+  await page.fill('textarea[name="body"]', "tiny");
+  await page.locator('form:has(input[name="title"]) button[type="submit"]').click();
+  await page.waitForTimeout(2000);
+  check(
+    "CMS validation rejects bad input",
+    (await page.locator("main").innerText()).includes("Give the article a title.") &&
+      page.url().endsWith("/new"),
+  );
+
+  // Clean up
+  await page.goto(programEditorUrl, { waitUntil: "domcontentloaded" });
+  await page.locator('form:has(button:text("Delete program")) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  await page.goto(`${BASE}/admin/content/programs`, { waitUntil: "domcontentloaded" });
+  check(
+    "CMS content deletes cleanly",
+    !(await page.locator("main").innerText()).includes("E2E CMS Program"),
+  );
+
   // 20. Per-item access: buying one program unlocks exactly that program.
   // Runs in a fresh context so this member is on the free plan throughout —
   // the point is that a grant works *without* a subscription tier.

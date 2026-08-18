@@ -46,6 +46,7 @@ const ACCOUNT_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Revenue", icon: ChartIcon },
+  { href: "/admin/content", label: "Content", icon: BookIcon },
   { href: "/admin/growth", label: "Growth", icon: LinkIcon },
   { href: "/admin/settings", label: "Branding", icon: SettingsIcon },
 ];
