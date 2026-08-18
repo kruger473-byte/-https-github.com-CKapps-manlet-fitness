@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env
+.env.local
+*.log
+prisma/dev.db
+prisma/*.db
+prisma/*.db-journal
+e2e-results.json
+shot-*.png
+README.md
+DEPLOYMENT.md

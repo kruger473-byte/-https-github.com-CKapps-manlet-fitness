@@ -1,0 +1,55 @@
+# Self-hosted stack: the app plus Postgres. Bring it up with:
+#   cp .env.example .env   # then set SESSION_SECRET and APP_URL
+#   docker compose up --build
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: manlet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-production}
+      POSTGRES_DB: manlet
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manlet -d manlet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://manlet:${POSTGRES_PASSWORD:-change-me-in-production}@db:5432/manlet
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      META_CONVERSIONS_TOKEN: ${META_CONVERSIONS_TOKEN:-}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      TIKTOK_PIXEL_CODE: ${TIKTOK_PIXEL_CODE:-}
+      TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_ADS_CUSTOMER_ID: ${GOOGLE_ADS_CUSTOMER_ID:-}
+      GOOGLE_ADS_DEVELOPER_TOKEN: ${GOOGLE_ADS_DEVELOPER_TOKEN:-}
+      GOOGLE_ADS_CONVERSION_ACTION: ${GOOGLE_ADS_CONVERSION_ACTION:-}
+      VIDEO_PROVIDER: ${VIDEO_PROVIDER:-local}
+      MUX_TOKEN_ID: ${MUX_TOKEN_ID:-}
+      MUX_TOKEN_SECRET: ${MUX_TOKEN_SECRET:-}
+      MUX_SIGNING_KEY_ID: ${MUX_SIGNING_KEY_ID:-}
+      MUX_SIGNING_KEY_SECRET: ${MUX_SIGNING_KEY_SECRET:-}
+    ports:
+      - "3000:3000"
+
+volumes:
+  db-data:

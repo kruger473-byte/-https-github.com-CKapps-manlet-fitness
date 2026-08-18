@@ -130,10 +130,30 @@ rather than pulling ~100kB of library onto pages that render two series.
 `tier`. Access is `tier >= minTier`, checked on the server at every read *and*
 every write. Client-side gating is presentation only.
 
+## Branding it as your own
+
+**Creator console → Branding** changes the product's identity without touching
+code or redeploying:
+
+- Brand name, monogram, tagline and the description search engines show
+- Logo upload (PNG/JPEG/SVG/WebP), stored inline so there's no object-storage
+  dependency; falls back to the monogram when unset
+- Accent colour, with the shade and on-accent text variants derived from one
+  hex — the text colour is picked by luminance, so a dark brand colour still
+  reads on buttons
+- Public domain, used for Stripe redirects, `/go/` tracked links, OAuth
+  callbacks and link previews
+
+Everything updates immediately across the marketing site, the member app, the
+creator console and the browser tab.
+
 ## Going to production
 
+**[DEPLOYMENT.md](DEPLOYMENT.md) is the full guide** — Vercel, Docker and
+self-hosted, with a go-live checklist. The short version:
+
 1. **Database.** Change `provider` to `postgresql` in `prisma/schema.prisma`,
-   point `DATABASE_URL` at it, then `npx prisma migrate deploy`.
+   generate a migration, then `npx prisma migrate deploy`.
 2. **Secrets.** Set a real `SESSION_SECRET` (48 random bytes) and `APP_URL`.
 3. **Stripe.** Add the keys, create your prices, and store the price ids on the
    `Plan` rows (`stripePriceIdMonthly` / `stripePriceIdYearly`). Point a webhook
@@ -143,6 +163,9 @@ every write. Client-side gating is presentation only.
    can't be shared as plain URLs.
 5. **Ad platforms.** Add the Meta/TikTok/Google credentials and confirm delivery
    with the test-conversion button.
+6. **Bootstrap.** Run `ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npm run
+   bootstrap` to create the plans and your admin account. Never run
+   `npm run db:seed` against production — it wipes every table.
 
 ### Why web-first
 
@@ -161,15 +184,19 @@ web.
 | `npm run setup` | Generate + create DB + seed |
 | `npm run db:reset` | Drop, recreate and reseed the database |
 | `npm run typecheck` | TypeScript, no emit |
+| `npm run bootstrap` | Non-destructive production setup: plans, settings, admin |
+| `npm run db:migrate` | Create a migration from schema changes |
+| `npm run db:deploy` | Apply committed migrations (production) |
 | `npm run e2e` | Browser smoke suite against a running server |
 
 ## Status
 
-Built and verified end to end: a 27-check browser suite covers tracked-link
+Built and verified end to end: a 38-check browser suite covers tracked-link
 attribution, signup, paywalls on locked content, free previews, knowledge
 search, the macro calculator, demo checkout and upgrade, coaching booking and
 the classroom, community posting permissions, the progress API's entitlement
-check, admin-route protection, and the revenue and growth consoles.
+check, admin-route protection, the revenue and growth consoles, and branding
+(rename, recolour, domain validation and the accent-contrast rule).
 
 Not included, and the honest list of what you'd add next: email delivery
 (receipts, dunning, win-back), a live video provider for the coaching call

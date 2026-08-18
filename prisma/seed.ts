@@ -19,6 +19,18 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 864e5);
 const daysAhead = (n: number) => new Date(Date.now() + n * 864e5);
 
 async function main() {
+  // This seed is DESTRUCTIVE — it wipes every table before inserting demo data.
+  // Refuse to run against a production database unless explicitly forced, so a
+  // stray `npm run db:seed` on a deploy host cannot delete real members.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DESTRUCTIVE_SEED !== "yes") {
+    console.error(
+      "Refusing to seed: NODE_ENV=production and this script deletes all data.\n" +
+        "Use `npm run bootstrap` to set up a production instance non-destructively.\n" +
+        "If you really mean it, set ALLOW_DESTRUCTIVE_SEED=yes.",
+    );
+    process.exit(1);
+  }
+
   console.log("Seeding Manlet Fitness...");
 
   // --- wipe (child rows first) ---------------------------------------------
