@@ -19,3 +19,7 @@ prisma/*.db-journal
 npm-debug.log*
 coverage/
 .vercel
+
+# e2e artefacts
+e2e-results.json
+shot-*.png
