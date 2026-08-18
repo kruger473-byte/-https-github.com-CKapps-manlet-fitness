@@ -1,0 +1,579 @@
+// Manlet Fitness — creator-owned fitness subscription platform.
+// Dev uses SQLite; switch `provider` to "postgresql" for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+enum Role {
+  MEMBER
+  COACH
+  ADMIN
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String?
+  name         String
+  role         Role    @default(MEMBER)
+  avatarUrl    String?
+  bio          String?
+  timezone     String  @default("UTC")
+
+  // Onboarding / personalisation
+  goal            String?
+  experienceLevel String?
+  weightKg        Float?
+  heightCm        Float?
+  birthYear       Int?
+  sex             String?
+
+  stripeCustomerId String? @unique
+
+  // First-party attribution: how this member was actually acquired.
+  // This is the data the ad platforms will not give you back.
+  attributedChannelId String?
+  attributedChannel   Channel? @relation(fields: [attributedChannelId], references: [id], onDelete: SetNull)
+  attributionCampaign String?
+  attributionSource   String?
+  attributionMedium   String?
+  landingClickId      String?
+
+  emailVerifiedAt DateTime?
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  oauthAccounts     OAuthAccount[]
+  subscriptions     Subscription[]
+  progress          Progress[]
+  coachProfile      CoachProfile?
+  clientSessions    CoachingSession[] @relation("ClientSessions")
+  threads           Thread[]
+  posts             Post[]
+  reactions         Reaction[]
+  conversionEvents  ConversionEvent[]
+  payments          Payment[]
+
+  @@index([attributedChannelId])
+  @@index([createdAt])
+}
+
+/// Social logins for members (Google / Meta / TikTok sign-in).
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+  scope             String?
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Plans, subscriptions, money
+// ---------------------------------------------------------------------------
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  PAUSED
+}
+
+/// A sellable membership tier. `tier` drives content entitlement:
+/// content with minTier <= subscription.plan.tier is unlocked.
+model Plan {
+  id                  String  @id @default(cuid())
+  key                 String  @unique
+  name                String
+  tagline             String
+  tier                Int     @unique
+  priceMonthlyCents   Int
+  priceYearlyCents    Int
+  currency            String  @default("usd")
+  stripePriceIdMonthly String?
+  stripePriceIdYearly  String?
+  trialDays           Int     @default(7)
+  features            String  @default("[]") // JSON string[]
+  includesCoaching    Boolean @default(false)
+  coachingCreditsPerMonth Int @default(0)
+  isActive            Boolean @default(true)
+  sortOrder           Int     @default(0)
+
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId               String
+  plan                 Plan               @relation(fields: [planId], references: [id])
+  status               SubscriptionStatus @default(TRIALING)
+  interval             String             @default("month")
+  stripeSubscriptionId String?            @unique
+  currentPeriodStart   DateTime           @default(now())
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  canceledAt           DateTime?
+  trialEndsAt          DateTime?
+  coachingCreditsLeft  Int                @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountCents   Int
+  currency      String   @default("usd")
+  status        String
+  kind          String   @default("subscription") // subscription | coaching | one_off
+  description   String?
+  stripeObjectId String? @unique
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// Stripe webhook de-duplication.
+model WebhookEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+  payload     String
+}
+
+// ---------------------------------------------------------------------------
+// Video training content
+// ---------------------------------------------------------------------------
+
+model VideoAsset {
+  id              String  @id @default(cuid())
+  provider        String  @default("local") // local | mux | cloudflare | bunny
+  providerAssetId String?
+  playbackId      String?
+  sourceUrl       String?
+  thumbnailUrl    String?
+  durationSec     Int     @default(0)
+  status          String  @default("ready")
+  createdAt       DateTime @default(now())
+
+  workouts Workout[]
+}
+
+model Program {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  title       String
+  subtitle    String?
+  description String
+  level       String  @default("beginner")
+  category    String  @default("strength")
+  coverUrl    String?
+  weeks       Int     @default(4)
+  minTier     Int     @default(1)
+  isPublished Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  workouts Workout[]
+
+  @@index([isPublished, minTier])
+}
+
+model Workout {
+  id           String  @id @default(cuid())
+  programId    String
+  program      Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  weekNumber   Int     @default(1)
+  dayNumber    Int     @default(1)
+  sortOrder    Int     @default(0)
+  durationSec  Int     @default(0)
+  equipment    String  @default("[]") // JSON string[]
+  videoAssetId String?
+  videoAsset   VideoAsset? @relation(fields: [videoAssetId], references: [id], onDelete: SetNull)
+  isFreePreview Boolean @default(false)
+
+  progress Progress[]
+
+  @@index([programId, sortOrder])
+}
+
+model Progress {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutId      String
+  workout        Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  secondsWatched Int      @default(0)
+  completedAt    DateTime?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, workoutId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Nutrition / diet plans
+// ---------------------------------------------------------------------------
+
+model DietPlan {
+  id            String  @id @default(cuid())
+  slug          String  @unique
+  title         String
+  description   String
+  goal          String  @default("recomp") // cut | bulk | recomp | maintain
+  kcalTarget    Int
+  proteinG      Int
+  carbsG        Int
+  fatG          Int
+  durationDays  Int     @default(7)
+  coverUrl      String?
+  minTier       Int     @default(1)
+  isPublished   Boolean @default(true)
+  createdAt     DateTime @default(now())
+
+  meals Meal[]
+
+  @@index([isPublished, minTier])
+}
+
+model Meal {
+  id          String   @id @default(cuid())
+  dietPlanId  String
+  dietPlan    DietPlan @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+  dayNumber   Int      @default(1)
+  slot        String   @default("breakfast")
+  title       String
+  ingredients String   @default("[]") // JSON string[]
+  method      String?
+  kcal        Int      @default(0)
+  proteinG    Int      @default(0)
+  carbsG      Int      @default(0)
+  fatG        Int      @default(0)
+  sortOrder   Int      @default(0)
+
+  @@index([dietPlanId, dayNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge base
+// ---------------------------------------------------------------------------
+
+model Category {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  blurb    String?
+  sortOrder Int   @default(0)
+
+  articles Article[]
+  threads  Thread[]
+}
+
+model Article {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String
+  body        String
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  readMinutes Int       @default(4)
+  minTier     Int       @default(0)
+  isPublished Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  viewCount   Int       @default(0)
+
+  @@index([isPublished, minTier])
+  @@index([categoryId])
+}
+
+// ---------------------------------------------------------------------------
+// 1-1 coaching classroom
+// ---------------------------------------------------------------------------
+
+model CoachProfile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline     String
+  bio          String
+  specialties  String  @default("[]") // JSON string[]
+  rateCents    Int     @default(9000)
+  currency     String  @default("usd")
+  isAcceptingClients Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  slots    AvailabilitySlot[]
+  sessions CoachingSession[]  @relation("CoachSessions")
+}
+
+model AvailabilitySlot {
+  id        String       @id @default(cuid())
+  coachId   String
+  coach     CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  startsAt  DateTime
+  endsAt    DateTime
+  isBooked  Boolean      @default(false)
+
+  session CoachingSession?
+
+  @@index([coachId, startsAt])
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+model CoachingSession {
+  id        String        @id @default(cuid())
+  coachId   String
+  coach     CoachProfile  @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    User          @relation("ClientSessions", fields: [clientId], references: [id], onDelete: Cascade)
+  slotId    String?       @unique
+  slot      AvailabilitySlot? @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  startsAt  DateTime
+  endsAt    DateTime
+  status    SessionStatus @default(SCHEDULED)
+  roomCode  String        @unique
+  agenda    String?
+  coachNotes String?
+  clientGoals String?
+  paidWithCredit Boolean  @default(false)
+  createdAt DateTime      @default(now())
+
+  messages ClassroomMessage[]
+
+  @@index([clientId, startsAt])
+  @@index([coachId, startsAt])
+}
+
+/// Async chat inside a 1-1 classroom (survives between live calls).
+model ClassroomMessage {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   CoachingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId  String
+  body      String
+  createdAt DateTime        @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// User exchange (community)
+// ---------------------------------------------------------------------------
+
+model Thread {
+  id         String    @id @default(cuid())
+  slug       String    @unique
+  title      String
+  body       String
+  authorId   String
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  isPinned   Boolean   @default(false)
+  isLocked   Boolean   @default(false)
+  minTier    Int       @default(1)
+  viewCount  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  posts     Post[]
+  reactions Reaction[]
+
+  @@index([createdAt])
+  @@index([categoryId])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  isCoachAnswer Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  reactions Reaction[]
+
+  @@index([threadId, createdAt])
+}
+
+model Reaction {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threadId String?
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  postId   String?
+  post     Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  type     String  @default("like")
+
+  @@unique([userId, threadId, postId])
+}
+
+// ---------------------------------------------------------------------------
+// Growth: owned channels, tracked links, server-side conversions
+// ---------------------------------------------------------------------------
+
+enum Platform {
+  INSTAGRAM
+  META
+  TIKTOK
+  GOOGLE
+  YOUTUBE
+  EMAIL
+  DIRECT
+}
+
+/// A connected social/ad account you own. Tokens live here so the
+/// platform relationship stays yours, not an agency's.
+model Channel {
+  id           String   @id @default(cuid())
+  platform     Platform
+  handle       String
+  displayName  String
+  externalId   String?
+  accessToken  String?
+  refreshToken String?
+  tokenExpiresAt DateTime?
+  scope        String?
+  pixelId      String?
+  adAccountId  String?
+  isConnected  Boolean  @default(false)
+  connectedAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  trackedLinks TrackedLink[]
+  contentPosts ContentPost[]
+  conversions  ConversionEvent[]
+  users        User[]
+
+  @@unique([platform, handle])
+}
+
+/// Content you published to a channel, with its metrics pulled back in.
+model ContentPost {
+  id            String   @id @default(cuid())
+  channelId     String
+  channel       Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  externalPostId String?
+  caption       String
+  permalink     String?
+  mediaType     String   @default("VIDEO")
+  publishedAt   DateTime @default(now())
+  impressions   Int      @default(0)
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  shares        Int      @default(0)
+  syncedAt      DateTime?
+
+  trackedLinks TrackedLink[]
+
+  @@index([channelId, publishedAt])
+}
+
+/// Short link you put in a bio/caption. Every click is attributed.
+model TrackedLink {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  destination   String   @default("/")
+  channelId     String?
+  channel       Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  contentPostId String?
+  contentPost   ContentPost? @relation(fields: [contentPostId], references: [id], onDelete: SetNull)
+  campaign      String?
+  medium        String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  clicks Click[]
+
+  @@index([channelId])
+}
+
+model Click {
+  id            String      @id @default(cuid())
+  trackedLinkId String
+  trackedLink   TrackedLink @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
+  clickedAt     DateTime    @default(now())
+  visitorId     String
+  clickId       String?     // fbclid / ttclid / gclid
+  referrer      String?
+  userAgent     String?
+  countryCode   String?
+
+  @@index([trackedLinkId, clickedAt])
+  @@index([visitorId])
+}
+
+enum ConversionType {
+  LEAD
+  SIGNUP
+  TRIAL_START
+  SUBSCRIBE
+  PURCHASE
+  CHURN
+}
+
+/// A conversion we own, forwarded server-side to Meta CAPI /
+/// TikTok Events API / Google. Server-side = survives cookie loss.
+model ConversionEvent {
+  id         String         @id @default(cuid())
+  type       ConversionType
+  userId     String?
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  channelId  String?
+  channel    Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  valueCents Int            @default(0)
+  currency   String         @default("usd")
+  campaign   String?
+  clickId    String?
+  dedupeKey  String         @unique
+  occurredAt DateTime       @default(now())
+
+  metaSyncedAt   DateTime?
+  tiktokSyncedAt DateTime?
+  googleSyncedAt DateTime?
+  lastError      String?
+
+  @@index([type, occurredAt])
+  @@index([channelId])
+}
