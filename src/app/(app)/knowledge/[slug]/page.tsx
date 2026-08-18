@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent } from "@/lib/entitlements";
 import { PageHeader, Badge, ButtonLink, Card, LockIcon } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +36,12 @@ export default async function ArticlePage({
   });
   if (!article || !article.isPublished) notFound();
 
-  const entitlement = entitlementFor(user.subscriptions);
-  const locked = entitlement.tier < article.minTier;
+  const { entitlement, accessKeys } = await accessContextFor(user);
+  const locked = !canAccessContent(entitlement, accessKeys, {
+    type: "ARTICLE",
+    id: article.id,
+    minTier: article.minTier,
+  });
 
   if (!locked) {
     await db.article.update({

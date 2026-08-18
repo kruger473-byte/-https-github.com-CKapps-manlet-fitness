@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent } from "@/lib/entitlements";
 
 const schema = z.object({
   workoutId: z.string().min(1),
@@ -32,8 +32,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  const entitlement = entitlementFor(user.subscriptions);
-  const allowed = entitlement.tier >= workout.program.minTier || workout.isFreePreview;
+  const { entitlement, accessKeys } = await accessContextFor(user);
+  const allowed =
+    workout.isFreePreview ||
+    canAccessContent(entitlement, accessKeys, {
+      type: "PROGRAM",
+      id: workout.programId,
+      minTier: workout.program.minTier,
+    });
   if (!allowed) {
     return NextResponse.json({ error: "Not included in your plan" }, { status: 403 });
   }

@@ -1,4 +1,5 @@
-import type { Plan, Subscription } from "@prisma/client";
+import type { ContentType, Plan, Subscription } from "@prisma/client";
+import { db } from "./db";
 
 export type ActiveSub = Subscription & { plan: Plan };
 
@@ -81,4 +82,69 @@ export function formatMoney(cents: number, currency = "usd"): string {
     currency: currency.toUpperCase(),
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
   }).format(cents / 100);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Explicit per-item access                                                   */
+/* -------------------------------------------------------------------------- */
+
+
+/**
+ * The set of content a member has been granted explicitly, as "TYPE:id" keys.
+ *
+ * Loaded once per request and passed down, so a page listing 40 programs makes
+ * one query rather than 40. Expired grants are filtered out here so callers
+ * never have to think about it.
+ */
+export async function getAccessKeys(userId: string): Promise<Set<string>> {
+  const now = new Date();
+  const grants = await db.accessGrant.findMany({
+    where: {
+      userId,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    select: { contentType: true, contentId: true },
+  });
+  return new Set(grants.map((g) => accessKey(g.contentType, g.contentId)));
+}
+
+export function accessKey(type: ContentType, id: string): string {
+  return `${type}:${id}`;
+}
+
+/**
+ * Can this member open this specific piece of content?
+ *
+ * Two independent routes in: their subscription tier covers it, or they hold a
+ * grant for it (bought it, or you gave it to them). Either is sufficient.
+ */
+export function canAccessContent(
+  entitlement: Entitlement,
+  accessKeys: Set<string>,
+  content: { type: ContentType; id: string; minTier: number },
+): boolean {
+  if (entitlement.tier >= content.minTier) return true;
+  return accessKeys.has(accessKey(content.type, content.id));
+}
+
+/** Why a member can see something — used to label the UI honestly. */
+export function accessReason(
+  entitlement: Entitlement,
+  accessKeys: Set<string>,
+  content: { type: ContentType; id: string; minTier: number },
+): "plan" | "purchased" | "locked" {
+  if (entitlement.tier >= content.minTier) return "plan";
+  if (accessKeys.has(accessKey(content.type, content.id))) return "purchased";
+  return "locked";
+}
+
+/** Everything needed to answer "can they see this?" for a whole page render. */
+export async function accessContextFor(user: {
+  id: string;
+  subscriptions: ActiveSub[];
+}): Promise<{ entitlement: Entitlement; accessKeys: Set<string> }> {
+  return {
+    entitlement: entitlementFor(user.subscriptions),
+    accessKeys: await getAccessKeys(user.id),
+  };
 }

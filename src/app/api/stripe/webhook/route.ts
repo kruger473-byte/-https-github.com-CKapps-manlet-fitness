@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getStripe, mapStripeStatus } from "@/lib/stripe";
 import { recordConversion } from "@/lib/integrations/hub";
+import { grantAccess, grantTargetsFor } from "@/lib/grants";
 
 /**
  * Stripe webhook — the authority on subscription state.
@@ -103,9 +104,38 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) return;
 
+  const isProduct = session.metadata?.kind === "product";
+
+  // One-off purchase: grant the content this product unlocks. Grants are
+  // upserted, so a replayed webhook is harmless.
+  if (isProduct && session.metadata?.productId) {
+    const product = await db.product.findUnique({
+      where: { id: session.metadata.productId },
+    });
+    if (product) {
+      await grantAccess(user.id, grantTargetsFor(product), {
+        source: "PURCHASE",
+        productId: product.id,
+      });
+      await db.payment.upsert({
+        where: { stripeObjectId: session.id },
+        update: { status: "succeeded" },
+        create: {
+          userId: user.id,
+          amountCents: session.amount_total ?? product.priceCents,
+          currency: session.currency ?? product.currency,
+          status: "succeeded",
+          kind: "one_off",
+          description: product.name,
+          stripeObjectId: session.id,
+        },
+      });
+    }
+  }
+
   // Attribute the sale to the channel that earned it.
   await recordConversion({
-    type: "SUBSCRIBE",
+    type: isProduct ? "PURCHASE" : "SUBSCRIBE",
     userId,
     channelId: session.metadata?.channelId || user.attributedChannelId,
     valueCents: session.amount_total ?? 0,

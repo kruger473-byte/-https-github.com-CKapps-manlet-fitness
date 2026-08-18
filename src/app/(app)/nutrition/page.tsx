@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, accessReason } from "@/lib/entitlements";
 import { MacroCalculator } from "@/components/macro-calculator";
 import { PageHeader, Badge, LockBadge, ButtonLink, Card } from "@/components/ui";
 
@@ -20,7 +20,7 @@ const GOAL_TONE = {
 export default async function NutritionPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const entitlement = entitlementFor(user.subscriptions);
+  const { entitlement, accessKeys } = await accessContextFor(user);
 
   const plans = await db.dietPlan.findMany({
     where: { isPublished: true },
@@ -39,12 +39,21 @@ export default async function NutritionPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="grid gap-4 lg:col-span-2 lg:grid-cols-2">
           {plans.map((plan) => {
-            const locked = entitlement.tier < plan.minTier;
+            const reason = accessReason(entitlement, accessKeys, {
+              type: "DIET_PLAN",
+              id: plan.id,
+              minTier: plan.minTier,
+            });
+            const locked = reason === "locked";
             return (
               <div key={plan.id} className="card flex flex-col p-5">
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <h2 className="text-base font-semibold">{plan.title}</h2>
-                  {locked ? <LockBadge tier={plan.minTier} /> : null}
+                  {locked ? (
+                    <LockBadge tier={plan.minTier} />
+                  ) : reason === "purchased" ? (
+                    <Badge tone="success">Purchased</Badge>
+                  ) : null}
                 </div>
                 <p className="flex-1 text-sm leading-relaxed text-ink-400">
                   {plan.description}

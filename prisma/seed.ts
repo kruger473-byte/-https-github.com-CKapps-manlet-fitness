@@ -35,6 +35,10 @@ async function main() {
 
   // --- wipe (child rows first) ---------------------------------------------
   await db.$transaction([
+    db.accessGrant.deleteMany(),
+    db.product.deleteMany(),
+    db.supplementItem.deleteMany(),
+    db.supplementPlan.deleteMany(),
     db.click.deleteMany(),
     db.trackedLink.deleteMany(),
     db.contentPost.deleteMany(),
@@ -462,6 +466,148 @@ async function main() {
     }
   }
 
+  // --- supplement plans -----------------------------------------------------
+  const supplementSpecs = [
+    {
+      slug: "evidence-basics",
+      title: "The short, boring list",
+      description:
+        "The handful of supplements with genuinely good evidence. If you only ever take three things, take these.",
+      goal: "general",
+      minTier: 1,
+      items: [
+        {
+          name: "Creatine monohydrate",
+          dose: "5g",
+          timing: "daily, any time",
+          purpose: "Small but reliable increase in strength and training volume.",
+          evidence:
+            "The most studied sports supplement there is, with hundreds of trials. Monohydrate is the cheap form and nothing has beaten it. Loading is optional; 5g a day gets you there in a few weeks.",
+          tier: "core",
+          cost: 800,
+        },
+        {
+          name: "Vitamin D3",
+          dose: "1000–2000 IU",
+          timing: "daily with a meal",
+          purpose: "Corrects a deficiency that is very common above 40° latitude.",
+          evidence:
+            "Useful if you are deficient, which is common in winter and for indoor workers. Not a performance enhancer if your levels are already fine. A blood test answers this properly.",
+          tier: "core",
+          cost: 400,
+        },
+        {
+          name: "Whey or casein protein",
+          dose: "20–40g as needed",
+          timing: "whenever it helps you hit your target",
+          purpose: "A convenient way to reach a protein target, not a magic powder.",
+          evidence:
+            "Protein intake matters; the delivery vehicle does not. Powder is food that happens to be easy. If you hit your target with meals, you do not need this.",
+          tier: "core",
+          cost: 2500,
+        },
+        {
+          name: "Caffeine",
+          dose: "100–200mg",
+          timing: "30–60 min pre-training",
+          purpose: "Real acute improvement in output and perceived effort.",
+          evidence:
+            "Works, and works consistently. Tolerance builds, so keep it for sessions that matter. Not within 8 hours of bed unless you enjoy ruining your sleep.",
+          tier: "optional",
+          cost: 500,
+        },
+        {
+          name: "Omega-3 (EPA/DHA)",
+          dose: "1–2g combined",
+          timing: "daily with a meal",
+          purpose: "General health; modest evidence for recovery.",
+          evidence:
+            "Worth taking if you rarely eat oily fish. The performance claims are weaker than the general-health ones — treat it as nutrition insurance, not a training aid.",
+          tier: "optional",
+          cost: 1200,
+        },
+        {
+          name: "Beta-alanine",
+          dose: "3–5g",
+          timing: "daily, split doses",
+          purpose: "Helps efforts in the 1–4 minute range.",
+          evidence:
+            "Genuine effect, but only in a narrow window of work durations. Useless for heavy triples. The harmless tingling is expected.",
+          tier: "situational",
+          cost: 700,
+        },
+      ],
+    },
+    {
+      slug: "sleep-and-recovery",
+      title: "Sleep and recovery",
+      description:
+        "What to consider when recovery is the bottleneck — and why most 'recovery' products are not worth buying.",
+      goal: "recovery",
+      minTier: 2,
+      items: [
+        {
+          name: "Magnesium glycinate",
+          dose: "200–400mg",
+          timing: "evening",
+          purpose: "May help sleep quality if your intake is low.",
+          evidence:
+            "The evidence is modest and mostly in people who were deficient. Glycinate is easier on the gut than oxide. Cheap enough to trial for a month and judge honestly.",
+          tier: "optional",
+          cost: 600,
+        },
+        {
+          name: "Glycine",
+          dose: "3g",
+          timing: "before bed",
+          purpose: "Small evidence for falling asleep faster.",
+          evidence:
+            "A few small studies show a modest effect on sleep onset and next-day alertness. Low risk, low cost, small upside.",
+          tier: "optional",
+          cost: 500,
+        },
+        {
+          name: "Melatonin",
+          dose: "0.5–1mg",
+          timing: "60 min before bed, short term",
+          purpose: "Shifting your body clock, mainly for travel or shift work.",
+          evidence:
+            "Effective for realigning a body clock, poor as a nightly sleeping pill. The doses sold in shops are usually 5–10x higher than needed.",
+          tier: "situational",
+          cost: 400,
+        },
+      ],
+    },
+  ];
+
+  for (const [si, spec] of supplementSpecs.entries()) {
+    const plan = await db.supplementPlan.create({
+      data: {
+        slug: spec.slug,
+        title: spec.title,
+        description: spec.description,
+        goal: spec.goal,
+        minTier: spec.minTier,
+        sortOrder: si,
+      },
+    });
+    for (const [ii, item] of spec.items.entries()) {
+      await db.supplementItem.create({
+        data: {
+          supplementPlanId: plan.id,
+          name: item.name,
+          dose: item.dose,
+          timing: item.timing,
+          purpose: item.purpose,
+          evidenceNote: item.evidence,
+          tier: item.tier,
+          monthlyCostCents: item.cost,
+          sortOrder: ii,
+        },
+      });
+    }
+  }
+
   // --- knowledge base -------------------------------------------------------
   const categories = await Promise.all(
     [
@@ -535,6 +681,63 @@ async function main() {
         minTier: a.tier,
         readMinutes: 3 + (a.body.length % 5),
         viewCount: 40 + a.body.length % 300,
+      },
+    });
+  }
+
+  // --- one-off products -----------------------------------------------------
+  // Sellable without a subscription. Buying one creates an AccessGrant that
+  // unlocks exactly that content, whatever plan the member is on.
+  const elitePeaking = await db.program.findUnique({
+    where: { slug: "elite-peaking" },
+  });
+  const cutPlan = await db.dietPlan.findUnique({ where: { slug: "cut-2200" } });
+  const foundation = await db.program.findUnique({
+    where: { slug: "foundation-strength" },
+  });
+
+  if (elitePeaking) {
+    await db.product.create({
+      data: {
+        slug: "elite-peaking-block",
+        name: "Elite Peaking Block",
+        description:
+          "The six-week peaking program on its own, no subscription. Yours permanently.",
+        priceCents: 4900,
+        contentType: "PROGRAM",
+        contentId: elitePeaking.id,
+        sortOrder: 0,
+      },
+    });
+  }
+  if (cutPlan) {
+    await db.product.create({
+      data: {
+        slug: "the-2200-cut",
+        name: "The 2,200 Cut",
+        description: "The full seven-day cutting plan with shopping list.",
+        priceCents: 1900,
+        contentType: "DIET_PLAN",
+        contentId: cutPlan.id,
+        sortOrder: 1,
+      },
+    });
+  }
+  if (elitePeaking && cutPlan && foundation) {
+    await db.product.create({
+      data: {
+        slug: "strength-bundle",
+        name: "Strength starter bundle",
+        description:
+          "Foundation Strength, the Elite Peaking Block and the 2,200 Cut together.",
+        priceCents: 7900,
+        contentType: "BUNDLE",
+        bundledIds: JSON.stringify([
+          `PROGRAM:${foundation.id}`,
+          `PROGRAM:${elitePeaking.id}`,
+          `DIET_PLAN:${cutPlan.id}`,
+        ]),
+        sortOrder: 2,
       },
     });
   }
@@ -724,6 +927,8 @@ async function main() {
   meals      ${await db.meal.count()}
   articles   ${await db.article.count()}
   threads    ${await db.thread.count()}
+  supplements ${await db.supplementPlan.count()}
+  products   ${await db.product.count()}
   channels   ${await db.channel.count()}
   clicks     ${await db.click.count()}
 

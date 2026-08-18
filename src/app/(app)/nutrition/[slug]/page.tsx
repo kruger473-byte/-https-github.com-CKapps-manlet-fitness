@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent } from "@/lib/entitlements";
 import { PageHeader, Badge, ButtonLink, Card, LockIcon } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +37,13 @@ export default async function DietPlanPage({
   });
   if (!plan || !plan.isPublished) notFound();
 
-  const entitlement = entitlementFor(user.subscriptions);
-  if (entitlement.tier < plan.minTier) {
+  const { entitlement, accessKeys } = await accessContextFor(user);
+  const allowed = canAccessContent(entitlement, accessKeys, {
+    type: "DIET_PLAN",
+    id: plan.id,
+    minTier: plan.minTier,
+  });
+  if (!allowed) {
     return (
       <>
         <Link href="/nutrition" className="text-sm text-ink-400 hover:text-ink-100">

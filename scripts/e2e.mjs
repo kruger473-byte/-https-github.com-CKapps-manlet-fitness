@@ -255,6 +255,60 @@ try {
   await page.click('button[type="submit"]');
   await page.waitForTimeout(2500);
   check("bad password rejected", (await page.locator("main").innerText()).includes("did not work"));
+  // 20. Per-item access: buying one program unlocks exactly that program.
+  // Runs in a fresh context so this member is on the free plan throughout —
+  // the point is that a grant works *without* a subscription tier.
+  const buyerCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const buyer = await buyerCtx.newPage();
+  const buyerEmail = `e2e-buyer-${Date.now()}@example.com`;
+  await buyer.goto(`${BASE}/signup`, { waitUntil: "networkidle" });
+  await buyer.fill('input[name="name"]', "E2E Buyer");
+  await buyer.fill('input[name="email"]', buyerEmail);
+  await buyer.fill('input[name="password"]', "password123");
+  await buyer.click('form button[type="submit"]');
+  await buyer.waitForURL("**/dashboard", { timeout: 20000 });
+
+  await buyer.goto(`${BASE}/programs/elite-peaking`, { waitUntil: "networkidle" });
+  check(
+    "elite program locked before purchase",
+    (await buyer.locator("main").innerText()).includes("needs the Elite plan"),
+  );
+
+  await buyer.goto(`${BASE}/supplements`, { waitUntil: "networkidle" });
+  const supplementsText = await buyer.locator("main").innerText();
+  check("supplement plans listed", supplementsText.includes("The short, boring list"));
+  check("supplement plan gated by tier", supplementsText.includes("Unlock with"));
+
+  await buyer.goto(`${BASE}/store`, { waitUntil: "networkidle" });
+  check("store lists one-off products", (await buyer.locator("main").innerText()).includes("Elite Peaking Block"));
+  await buyer.locator('form:has(input[name="productId"]) button[type="submit"]').first().click();
+  await buyer.waitForTimeout(3000);
+  check("one-off purchase completes", (await buyer.locator("main").innerText()).includes("Unlocked"));
+
+  await buyer.goto(`${BASE}/programs/elite-peaking`, { waitUntil: "networkidle" });
+  const boughtText = await buyer.locator("main").innerText();
+  check(
+    "purchased program opens without a subscription",
+    !boughtText.includes("needs the Elite plan") && boughtText.includes("Squat peak"),
+  );
+
+  const boughtHref = await buyer
+    .locator('a[href*="/programs/elite-peaking/"]')
+    .first()
+    .getAttribute("href");
+  await buyer.goto(`${BASE}${boughtHref}`, { waitUntil: "networkidle" });
+  check("purchased program's video plays", (await buyer.locator("video").count()) > 0);
+
+  await buyer.goto(`${BASE}/programs`, { waitUntil: "networkidle" });
+  check("programs list marks it Purchased", (await buyer.locator("main").innerText()).includes("Purchased"));
+
+  // The grant must be scoped to what was bought, not a blanket tier upgrade.
+  await buyer.goto(`${BASE}/knowledge/autoregulation`, { waitUntil: "networkidle" });
+  check(
+    "unrelated Elite content stays locked",
+    (await buyer.locator("main").innerText()).includes("for Elite members"),
+  );
+  await buyerCtx.close();
 } catch (error) {
   check("run completed without exception", false, String(error).slice(0, 300));
 } finally {

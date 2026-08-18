@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent, accessReason } from "@/lib/entitlements";
 import { PageHeader, LockBadge, Badge, ButtonLink } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Programs" };
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function ProgramsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const entitlement = entitlementFor(user.subscriptions);
+  const { entitlement, accessKeys } = await accessContextFor(user);
 
   const programs = await db.program.findMany({
     where: { isPublished: true },
@@ -41,7 +41,12 @@ export default async function ProgramsPage() {
 
       <div className="grid gap-5 md:grid-cols-2">
         {programs.map((program) => {
-          const locked = entitlement.tier < program.minTier;
+          const reason = accessReason(entitlement, accessKeys, {
+            type: "PROGRAM",
+            id: program.id,
+            minTier: program.minTier,
+          });
+          const locked = reason === "locked";
           const totalMinutes = Math.round(
             program.workouts.reduce((n, w) => n + w.durationSec, 0) / 60,
           );
@@ -61,7 +66,11 @@ export default async function ProgramsPage() {
                     <h2 className="text-lg font-bold">{program.title}</h2>
                     <p className="text-xs text-ink-300">{program.subtitle}</p>
                   </div>
-                  {locked ? <LockBadge tier={program.minTier} /> : null}
+                  {locked ? (
+                    <LockBadge tier={program.minTier} />
+                  ) : reason === "purchased" ? (
+                    <Badge tone="success">Purchased</Badge>
+                  ) : null}
                 </div>
               </div>
 

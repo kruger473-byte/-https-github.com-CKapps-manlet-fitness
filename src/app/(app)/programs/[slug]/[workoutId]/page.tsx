@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent } from "@/lib/entitlements";
 import { signPlayback, formatDuration } from "@/lib/video";
 import { VideoPlayer } from "@/components/video-player";
 import { Badge, ButtonLink, Card, LockIcon, PageHeader } from "@/components/ui";
@@ -35,9 +35,14 @@ export default async function WorkoutPage({
   });
   if (!workout || workout.program.slug !== slug) notFound();
 
-  const entitlement = entitlementFor(user.subscriptions);
+  const { entitlement, accessKeys } = await accessContextFor(user);
   const allowed =
-    entitlement.tier >= workout.program.minTier || workout.isFreePreview;
+    workout.isFreePreview ||
+    canAccessContent(entitlement, accessKeys, {
+      type: "PROGRAM",
+      id: workout.programId,
+      minTier: workout.program.minTier,
+    });
 
   if (!allowed) {
     return (

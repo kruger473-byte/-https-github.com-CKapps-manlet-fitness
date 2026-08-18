@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { entitlementFor } from "@/lib/entitlements";
+import { accessContextFor, canAccessContent } from "@/lib/entitlements";
 import { formatDuration } from "@/lib/video";
 import {
   PageHeader,
@@ -36,7 +36,7 @@ export default async function ProgramDetailPage({
   const { slug } = await params;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const entitlement = entitlementFor(user.subscriptions);
+  const { entitlement, accessKeys } = await accessContextFor(user);
 
   const program = await db.program.findUnique({
     where: { slug },
@@ -46,7 +46,11 @@ export default async function ProgramDetailPage({
   });
   if (!program || !program.isPublished) notFound();
 
-  const programLocked = entitlement.tier < program.minTier;
+  const programLocked = !canAccessContent(entitlement, accessKeys, {
+    type: "PROGRAM",
+    id: program.id,
+    minTier: program.minTier,
+  });
 
   const progress = await db.progress.findMany({
     where: { userId: user.id, workout: { programId: program.id } },

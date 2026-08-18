@@ -16,6 +16,7 @@ import {
   CreditCardIcon,
   SettingsIcon,
   LinkIcon,
+  SparkIcon,
   Badge,
 } from "./ui";
 
@@ -32,12 +33,14 @@ const MEMBER_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/programs", label: "Programs", icon: VideoIcon },
   { href: "/nutrition", label: "Nutrition", icon: AppleIcon },
+  { href: "/supplements", label: "Supplements", icon: SparkIcon },
   { href: "/knowledge", label: "Knowledge", icon: BookIcon },
   { href: "/coaching", label: "Coaching", icon: DumbbellIcon },
   { href: "/exchange", label: "Exchange", icon: UsersIcon },
 ];
 
 const ACCOUNT_NAV = [
+  { href: "/store", label: "Buy individually", icon: SparkIcon },
   { href: "/account/billing", label: "Billing", icon: CreditCardIcon },
 ];
 

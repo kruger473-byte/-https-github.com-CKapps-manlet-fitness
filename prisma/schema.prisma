@@ -95,6 +95,7 @@ model User {
   reactions         Reaction[]
   conversionEvents  ConversionEvent[]
   payments          Payment[]
+  accessGrants      AccessGrant[]
 
   @@index([attributedChannelId])
   @@index([createdAt])
@@ -607,4 +608,113 @@ model ConversionEvent {
 
   @@index([type, occurredAt])
   @@index([channelId])
+}
+
+// ---------------------------------------------------------------------------
+// Supplement plans
+// ---------------------------------------------------------------------------
+
+model SupplementPlan {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  title       String
+  description String
+  goal        String  @default("general") // general | strength | cut | recovery | sleep
+  coverUrl    String?
+  /// Honest framing matters here — this is where you say what the evidence
+  /// actually supports and what it doesn't.
+  disclaimer  String  @default("General information, not medical advice. Check with a doctor before starting any supplement, especially if you take medication.")
+  minTier     Int     @default(1)
+  isPublished Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  items SupplementItem[]
+
+  @@index([isPublished, minTier])
+}
+
+model SupplementItem {
+  id               String         @id @default(cuid())
+  supplementPlanId String
+  supplementPlan   SupplementPlan @relation(fields: [supplementPlanId], references: [id], onDelete: Cascade)
+  name             String
+  dose             String
+  timing           String         @default("daily")
+  purpose          String
+  /// What the evidence actually says. Kept separate from `purpose` so the
+  /// claim and its support never get blurred together.
+  evidenceNote     String?
+  tier             String         @default("core") // core | optional | situational
+  monthlyCostCents Int            @default(0)
+  sortOrder        Int            @default(0)
+
+  @@index([supplementPlanId, sortOrder])
+}
+
+// ---------------------------------------------------------------------------
+// One-off products & explicit access grants
+// ---------------------------------------------------------------------------
+
+enum ContentType {
+  PROGRAM
+  DIET_PLAN
+  SUPPLEMENT_PLAN
+  ARTICLE
+  BUNDLE
+}
+
+/// Something sellable on its own, outside a subscription. Buying one creates
+/// an AccessGrant, which unlocks the linked content regardless of plan tier.
+model Product {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  name          String
+  description   String
+  priceCents    Int
+  currency      String      @default("usd")
+  stripePriceId String?
+  contentType   ContentType
+  /// Null for a BUNDLE, which grants everything listed in `bundledIds`.
+  contentId     String?
+  /// JSON array of "TYPE:id" strings, used when contentType is BUNDLE.
+  bundledIds    String      @default("[]")
+  coverUrl      String?
+  isActive      Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  grants AccessGrant[]
+
+  @@index([isActive])
+}
+
+enum GrantSource {
+  PURCHASE
+  MANUAL
+  SUBSCRIPTION
+  PROMO
+}
+
+/// Explicit access to one piece of content for one member.
+///
+/// Entitlement is the union of this and the plan-tier check, so a member can
+/// buy a single program without subscribing, and you can hand out access
+/// manually without inventing a coupon.
+model AccessGrant {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentType ContentType
+  contentId   String
+  source      GrantSource @default(PURCHASE)
+  productId   String?
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Null means permanent — the usual case for a purchase.
+  expiresAt   DateTime?
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  @@unique([userId, contentType, contentId])
+  @@index([userId])
 }
