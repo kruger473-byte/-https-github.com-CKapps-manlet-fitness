@@ -13,7 +13,9 @@ export function BarChart({
   const max = Math.max(1, ...data.map((d) => d.value));
 
   return (
-    <div className="flex h-48 items-end gap-2">
+    // items-stretch (the default) is load-bearing: with items-end the columns
+    // size to content, leaving the inner flex-1 no height for the bars to fill.
+    <div className="flex h-48 gap-2">
       {data.map((d) => {
         const pct = (d.value / max) * 100;
         return (
