@@ -17,6 +17,7 @@ import {
   platformFromSource,
 } from "@/lib/attribution";
 import { recordConversion, resolveChannel } from "@/lib/integrations/hub";
+import { ensureStarterData, claimOwnershipIfUnclaimed } from "@/lib/bootstrap";
 
 export type AuthFormState = { error?: string };
 
@@ -53,6 +54,10 @@ export async function signupAction(
   if (existing) {
     return { error: "An account with that email already exists. Try signing in." };
   }
+
+  // A fresh deployment has no plans and no owner. Create them here rather than
+  // making the person who deployed it run SQL by hand.
+  await ensureStarterData();
 
   // Attach the acquisition data captured by middleware on first landing.
   const cookieStore = await cookies();
@@ -93,7 +98,18 @@ export async function signupAction(
     userAgent: headerList.get("user-agent"),
   });
 
-  await createSession({ userId: user.id, email: user.email, role: user.role });
+  // First account on an ownerless site becomes the owner.
+  const isOwner = await claimOwnershipIfUnclaimed(user.id);
+
+  await createSession({
+    userId: user.id,
+    email: user.email,
+    role: isOwner ? "ADMIN" : user.role,
+  });
+
+  if (isOwner) {
+    redirect("/admin/settings?welcome=1");
+  }
 
   if (plan && plan !== "free") {
     redirect(`/account/billing?plan=${encodeURIComponent(plan)}`);

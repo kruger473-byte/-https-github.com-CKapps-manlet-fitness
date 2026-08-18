@@ -10,6 +10,18 @@ member is an email address you own. Social becomes an acquisition *channel*
 instead of the business itself — so the platform is built to measure exactly
 which post produced which paying member.
 
+## Deploying it
+
+- **Never deployed anything before?** → **[GO-LIVE.md](GO-LIVE.md)** — a
+  plain-language walkthrough from zero to taking real payments, in about two
+  hours.
+- **Comfortable in a terminal?** → **[DEPLOYMENT-TECHNICAL.md](DEPLOYMENT-TECHNICAL.md)**
+  — Vercel, Docker and self-hosted, with a go-live checklist.
+
+The first account created on a new deployment becomes the owner automatically,
+and the starter plans are created with it — so there is no SQL to run and no way
+to get locked out of your own product.
+
 ## Quick start
 
 ```bash
@@ -57,6 +69,22 @@ Mifflin-St Jeor calculator that turns a member's own numbers into a target.
 
 **Knowledge base.** Searchable, category-filtered, tier-gated articles. Free
 articles are the top of the funnel; deeper material sits behind the membership.
+
+**Supplement plans.** Short lists graded core / optional / situational, with the
+evidence note kept deliberately separate from the claim, so what is supported
+and what is marketing never blur together. Core-stack monthly cost is shown, so
+the plan is honest about what following it costs.
+
+**Content management.** Programs (and their video sessions), diet plans (and
+meals), supplement plans (and items) and articles are all created and edited in
+the app. Slugs are generated and de-duplicated automatically; the diet editor
+flags any day whose meals miss the plan's own calorie target.
+
+**Pricing and products.** Subscription prices, features, trials and Stripe price
+IDs are editable in the UI. Any published item can also be sold on its own, or
+bundled — a one-off purchase grants that content permanently, whatever plan the
+buyer is on, and they keep it if they cancel. Access can also be granted by hand
+for refunds and comps.
 
 **1-1 coaching classroom.** Members book from the coach's real availability.
 Slots are claimed with a conditional update so two members hitting the same slot
@@ -126,9 +154,12 @@ Stack: Next.js 15 (App Router), React 19, TypeScript, Tailwind v4, Prisma 6,
 Stripe. Nine runtime dependencies total — charts and icons are hand-rolled
 rather than pulling ~100kB of library onto pages that render two series.
 
-**Entitlement model.** Content carries a `minTier`; a member's plan carries a
-`tier`. Access is `tier >= minTier`, checked on the server at every read *and*
-every write. Client-side gating is presentation only.
+**Entitlement model.** Access is the union of two independent routes: the
+member's plan tier covers the content's `minTier`, **or** they hold an explicit
+grant for that exact item (bought it, or you gave it to them). Both are checked
+on the server at every read *and* every write; client-side gating is
+presentation only. Grants load once per request as a key set, so a page listing
+forty programs still makes one query.
 
 ## Branding it as your own
 
@@ -191,14 +222,18 @@ web.
 
 ## Status
 
-Built and verified end to end: a 38-check browser suite covers tracked-link
+Built and verified end to end: a 61-check browser suite covers tracked-link
 attribution, signup, paywalls on locked content, free previews, knowledge
 search, the macro calculator, demo checkout and upgrade, coaching booking and
 the classroom, community posting permissions, the progress API's entitlement
-check, admin-route protection, the revenue and growth consoles, and branding
-(rename, recolour, domain validation and the accent-contrast rule).
+check, admin-route protection, the revenue and growth consoles, branding
+(rename, recolour, domain validation and the accent-contrast rule), the content
+CMS (create, publish, hide, validate, delete), pricing changes reaching the
+public page, and per-item purchases unlocking exactly what was bought and
+nothing else.
 
 Not included, and the honest list of what you'd add next: email delivery
 (receipts, dunning, win-back), a live video provider for the coaching call
-itself (the classroom holds everything around it), content upload UI for the
-creator (seeded and DB-driven today), and rate limiting on auth endpoints.
+itself (the classroom holds everything around it), direct video upload from the
+admin UI (you paste a URL or playback ID today), and rate limiting on auth
+endpoints.

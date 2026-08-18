@@ -18,7 +18,12 @@ import { PageHeader, Card, Alert, Badge, ButtonLink } from "@/components/ui";
 export const metadata: Metadata = { title: "Branding" };
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const { welcome } = await searchParams;
   const [settings, appUrl, linkCount] = await Promise.all([
     getSiteSettings(),
     getAppUrl(),
@@ -39,6 +44,22 @@ export default async function SettingsPage() {
           </ButtonLink>
         }
       />
+
+      {welcome ? (
+        <div className="mb-6">
+          <Alert tone="success">
+            <strong>You&apos;re the owner of this site.</strong> The first account
+            on a new deployment becomes the owner automatically, and the starter
+            plans have been created for you. Nobody who signs up after this gets
+            owner access.
+            <span className="mt-2 block">
+              Start here: set your brand name, colour and logo below. Then add
+              your content under <strong>Content</strong>, and set your prices
+              under <strong>Pricing</strong>.
+            </span>
+          </Alert>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">

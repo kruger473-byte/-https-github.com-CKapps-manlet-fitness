@@ -1,4 +1,9 @@
-# Deploying
+# Deploying — technical reference
+
+> **Not a developer?** Read **[GO-LIVE.md](GO-LIVE.md)** instead. It walks
+> through the same thing in plain language with no assumed knowledge. This page
+> is the condensed version for someone comfortable with a terminal.
+
 
 This app is a single Next.js service plus a Postgres database. Anywhere that
 runs those two things will work. Pick one path below.
