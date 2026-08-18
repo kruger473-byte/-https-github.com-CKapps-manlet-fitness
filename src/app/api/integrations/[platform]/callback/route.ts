@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
+import { getAppUrl } from "@/lib/settings";
 import type { Platform } from "@prisma/client";
 
 const OAUTH_STATE_COOKIE = "mf_oauth_state";
@@ -28,27 +29,29 @@ export async function GET(
   }
 
   const { platform } = await params;
+  const appUrl = await getAppUrl();
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const oauthError = url.searchParams.get("error");
 
   if (oauthError) {
-    return redirectWithMessage(`${platform} declined: ${oauthError}`);
+    return redirectWithMessage(`${platform} declined: ${oauthError}`, appUrl);
   }
 
   const stored = (await cookies()).get(OAUTH_STATE_COOKIE)?.value;
   if (!stored || stored !== `${platform}:${state}`) {
     return redirectWithMessage(
       "OAuth state did not match — the request was not started here. Nothing was connected.",
+      appUrl,
     );
   }
-  if (!code) return redirectWithMessage("No authorisation code was returned.");
+  if (!code) return redirectWithMessage("No authorisation code was returned.", appUrl);
 
   const mapped = PLATFORM_MAP[platform];
-  if (!mapped) return redirectWithMessage(`Unknown platform "${platform}".`);
+  if (!mapped) return redirectWithMessage(`Unknown platform "${platform}".`, appUrl);
 
-  const redirectUri = `${env.appUrl}/api/integrations/${platform}/callback`;
+  const redirectUri = `${appUrl}/api/integrations/${platform}/callback`;
 
   let tokens: { accessToken: string; refreshToken?: string; expiresIn?: number };
   try {
@@ -56,6 +59,7 @@ export async function GET(
   } catch (error) {
     return redirectWithMessage(
       `Token exchange failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      appUrl,
     );
   }
 
@@ -84,7 +88,7 @@ export async function GET(
     },
   });
 
-  const response = redirectWithMessage(`${platform} connected.`);
+  const response = redirectWithMessage(`${platform} connected.`, appUrl);
   response.cookies.delete(OAUTH_STATE_COOKIE);
   return response;
 }
@@ -160,8 +164,8 @@ async function exchangeCode(
   throw new Error(`Unsupported platform "${platform}"`);
 }
 
-function redirectWithMessage(message: string) {
-  const target = new URL("/admin/growth", env.appUrl);
+function redirectWithMessage(message: string, appUrl: string) {
+  const target = new URL("/admin/growth", appUrl);
   target.searchParams.set("integration", message);
   return NextResponse.redirect(target, { status: 307 });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { env } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
+import { getAppUrl } from "@/lib/settings";
 import { metaOAuthUrl } from "@/lib/integrations/meta";
 import { tiktokOAuthUrl } from "@/lib/integrations/tiktok";
 import { googleOAuthUrl } from "@/lib/integrations/google";
@@ -26,7 +27,7 @@ export async function GET(
 
   const { platform } = await params;
   const state = randomBytes(16).toString("hex");
-  const redirectUri = `${env.appUrl}/api/integrations/${platform}/callback`;
+  const redirectUri = `${await getAppUrl()}/api/integrations/${platform}/callback`;
 
   let authUrl: string | null = null;
   switch (platform) {

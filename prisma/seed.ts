@@ -49,7 +49,21 @@ async function main() {
     db.channel.deleteMany(),
     db.plan.deleteMany(),
     db.webhookEvent.deleteMany(),
+    db.siteSettings.deleteMany(),
   ]);
+
+  // --- site settings --------------------------------------------------------
+  // Seeded explicitly so the branding page has a row to edit from the start.
+  await db.siteSettings.create({
+    data: {
+      id: "singleton",
+      brandName: "Manlet Fitness",
+      monogram: "MF",
+      tagline: "Training, nutrition and coaching that stays yours",
+      accentColor: "#c8f31d",
+      supportEmail: "help@manlet.fit",
+    },
+  });
 
   // --- plans ----------------------------------------------------------------
   const [free, core, elite] = await Promise.all([

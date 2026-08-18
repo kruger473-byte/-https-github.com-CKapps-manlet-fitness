@@ -63,7 +63,7 @@ export function PlanPicker({
               type="button"
               onClick={() => setInterval(i)}
               className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
-                interval === i ? "bg-volt-500 text-ink-950" : "text-ink-400 hover:text-ink-100"
+                interval === i ? "bg-volt-500 text-[var(--color-accent-fg)]" : "text-ink-400 hover:text-ink-100"
               }`}
             >
               {i === "month" ? "Monthly" : "Yearly — save ~2 months"}

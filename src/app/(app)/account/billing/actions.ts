@@ -4,9 +4,9 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
+import { getAppUrl } from "@/lib/settings";
 import { recordConversion } from "@/lib/integrations/hub";
 
 export type BillingState = { error?: string; notice?: string };
@@ -44,6 +44,7 @@ export async function startCheckoutAction(
   }
 
   const stripe = getStripe()!;
+  const appUrl = await getAppUrl();
   const priceId =
     interval === "year" ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
 
@@ -74,8 +75,8 @@ export async function startCheckoutAction(
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${env.appUrl}/account/billing?checkout=success`,
-      cancel_url: `${env.appUrl}/account/billing?checkout=cancelled`,
+      success_url: `${appUrl}/account/billing?checkout=success`,
+      cancel_url: `${appUrl}/account/billing?checkout=cancelled`,
       subscription_data: {
         trial_period_days: plan.trialDays > 0 ? plan.trialDays : undefined,
         metadata: { userId: user.id, planId: plan.id },
@@ -125,7 +126,7 @@ export async function openBillingPortalAction(
   try {
     const session = await getStripe()!.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${env.appUrl}/account/billing`,
+      return_url: `${await getAppUrl()}/account/billing`,
     });
     url = session.url;
   } catch (error) {

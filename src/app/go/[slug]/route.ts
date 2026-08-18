@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { getAppUrl } from "@/lib/settings";
 import {
   ATTRIBUTION_COOKIE,
   VISITOR_COOKIE,
@@ -22,6 +23,7 @@ export async function GET(
 ) {
   const { slug } = await params;
   const url = new URL(request.url);
+  const appUrl = await getAppUrl();
 
   const link = await db.trackedLink.findUnique({
     where: { slug },
@@ -30,7 +32,7 @@ export async function GET(
 
   // Unknown slug: send people to the homepage rather than a dead end.
   if (!link) {
-    return NextResponse.redirect(new URL("/", env.appUrl), { status: 307 });
+    return NextResponse.redirect(new URL("/", appUrl), { status: 307 });
   }
 
   const cookieHeader = request.headers.get("cookie") ?? "";
@@ -58,7 +60,7 @@ export async function GET(
     console.error(`Click logging failed for /go/${slug}:`, error);
   }
 
-  const destination = new URL(link.destination, env.appUrl);
+  const destination = new URL(link.destination, appUrl);
   const response = NextResponse.redirect(destination, { status: 307 });
 
   response.cookies.set(VISITOR_COOKIE, visitorId, {

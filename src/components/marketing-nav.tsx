@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { ButtonLink } from "./ui";
+import { Brand, type BrandInfo } from "./brand";
+import { getSiteSettings } from "@/lib/settings";
 
-export function MarketingNav({ signedIn }: { signedIn: boolean }) {
+export async function MarketingNav({ signedIn }: { signedIn: boolean }) {
+  const settings = await getSiteSettings();
+  const brand: BrandInfo = settings;
   return (
     <header className="sticky top-0 z-40 border-b border-ink-800/80 bg-ink-950/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold tracking-tight">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-volt-500 text-sm font-black text-ink-950">
-            MF
-          </span>
-          <span className="hidden sm:inline">Manlet Fitness</span>
-        </Link>
+        <Brand brand={brand} href="/" className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
 
         <nav className="hidden items-center gap-7 text-sm text-ink-300 md:flex">
           <Link href="/#how" className="transition-colors hover:text-ink-100">
@@ -46,17 +45,13 @@ export function MarketingNav({ signedIn }: { signedIn: boolean }) {
   );
 }
 
-export function MarketingFooter() {
+export async function MarketingFooter() {
+  const settings = await getSiteSettings();
   return (
     <footer className="mt-24 border-t border-ink-800 bg-ink-900/50">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div className="flex items-center gap-2 font-bold">
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-volt-500 text-xs font-black text-ink-950">
-              MF
-            </span>
-            Manlet Fitness
-          </div>
+          <Brand brand={settings} href="/" size="sm" />
           <p className="mt-3 text-sm text-ink-400">
             Sold direct. No app-store cut, no platform middleman.
           </p>
@@ -86,8 +81,19 @@ export function MarketingFooter() {
         />
       </div>
       <div className="border-t border-ink-800 px-4 py-5 text-center text-xs text-ink-400">
-        © {new Date().getFullYear()} Manlet Fitness. Training content is general
-        information, not medical advice.
+        © {new Date().getFullYear()} {settings.brandName}. Training content is
+        general information, not medical advice.
+        {settings.supportEmail ? (
+          <>
+            {" "}
+            <a
+              href={`mailto:${settings.supportEmail}`}
+              className="underline transition-colors hover:text-ink-100"
+            >
+              {settings.supportEmail}
+            </a>
+          </>
+        ) : null}
       </div>
     </footer>
   );

@@ -112,7 +112,7 @@ export default async function DietPlanPage({
             href={`/nutrition/${plan.slug}?day=${d}`}
             className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
               d === activeDay
-                ? "border-volt-500 bg-volt-500 text-ink-950"
+                ? "border-volt-500 bg-volt-500 text-[var(--color-accent-fg)]"
                 : "border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-600"
             }`}
           >

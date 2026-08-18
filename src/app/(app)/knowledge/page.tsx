@@ -133,7 +133,7 @@ function FilterChip({
       href={href}
       className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
         active
-          ? "border-volt-500 bg-volt-500 text-ink-950"
+          ? "border-volt-500 bg-volt-500 text-[var(--color-accent-fg)]"
           : "border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-600"
       }`}
     >

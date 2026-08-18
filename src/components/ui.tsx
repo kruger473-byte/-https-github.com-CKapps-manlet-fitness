@@ -9,7 +9,7 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary:
-    "bg-volt-500 text-ink-950 hover:bg-volt-400 focus-visible:outline-volt-500 font-semibold",
+    "bg-volt-500 text-[var(--color-accent-fg)] hover:bg-volt-400 focus-visible:outline-volt-500 font-semibold",
   secondary:
     "bg-ink-800 text-ink-100 hover:bg-ink-700 border border-ink-700 focus-visible:outline-ink-600",
   ghost:

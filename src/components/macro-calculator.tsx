@@ -153,7 +153,7 @@ function Toggle({
           onClick={() => onChange(key)}
           className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
             value === key
-              ? "bg-volt-500 text-ink-950"
+              ? "bg-volt-500 text-[var(--color-accent-fg)]"
               : "text-ink-400 hover:text-ink-100"
           }`}
         >

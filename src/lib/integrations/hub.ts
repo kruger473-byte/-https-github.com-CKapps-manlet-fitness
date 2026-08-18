@@ -1,6 +1,7 @@
 import type { ConversionType, Platform } from "@prisma/client";
 import { db } from "../db";
 import { env } from "../env";
+import { getAppUrl } from "../settings";
 import { conversionDedupeKey } from "../attribution";
 import { sendMetaConversion } from "./meta";
 import { sendTikTokConversion } from "./tiktok";
@@ -91,7 +92,7 @@ async function dispatchConversion(
     clickId: input.clickId,
     clientIp: input.clientIp,
     userAgent: input.userAgent,
-    sourceUrl: env.appUrl,
+    sourceUrl: await getAppUrl(),
   };
 
   const [meta, tiktok, google] = await Promise.all([

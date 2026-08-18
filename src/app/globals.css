@@ -14,6 +14,9 @@
   --color-volt-500: #c8f31d;
   --color-volt-400: #d7f84f;
   --color-volt-600: #a5cc0e;
+  /* Readable text on top of the accent. Overridden per-brand at runtime
+     by BrandTheme so a dark accent doesn't get dark text. */
+  --color-accent-fg: #08090c;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;

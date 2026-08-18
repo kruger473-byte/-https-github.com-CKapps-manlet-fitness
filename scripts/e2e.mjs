@@ -171,7 +171,83 @@ try {
   check("integration status reported", growthHtml.includes("not configured"));
   await page.screenshot({ path: `${OUT}/shot-admin-growth.png`, fullPage: false });
 
-  // 17. Wrong password rejected
+  // 17. Branding: rename, recolour, and set a domain
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+  check("branding page renders", (await page.locator("main").innerText()).includes("Branding & domain"));
+
+  await page.fill('input[name="brandName"]', "Ironworks Club");
+  await page.fill('input[name="monogram"]', "IW");
+  await page.fill('input[name="accentColor"]', "#1d4ed8"); // dark accent on purpose
+  await page.fill('input[name="canonicalUrl"]', "train.ironworks.test");
+  await page.locator('form:has(input[name="brandName"]) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check(
+    "branding saves",
+    (await page.locator("main").innerText()).includes("Branding saved"),
+  );
+
+  // Brand name propagates into the shell and the document title
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  check("brand name applied in app shell", (await page.locator("body").innerText()).includes("Ironworks Club"));
+  check("brand name applied to page title", (await page.title()).includes("Ironworks Club"));
+
+  // Saving with the optional domain left blank must not be blocked
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+  await page.fill('input[name="canonicalUrl"]', "");
+  await page.fill('input[name="brandName"]', "Ironworks Club");
+  await page.locator('form:has(input[name="brandName"]) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check(
+    "branding saves with blank domain",
+    (await page.locator("main").innerText()).includes("Branding saved"),
+  );
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  check("brand name reaches the landing page title", (await page.title()).includes("Ironworks Club"));
+
+  // Restore the domain for the checks below
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+  await page.fill('input[name="canonicalUrl"]', "train.ironworks.test");
+  await page.fill('input[name="accentColor"]', "#1d4ed8");
+  await page.locator('form:has(input[name="brandName"]) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+
+  // A dark accent must flip the on-accent text to white, or buttons go unreadable
+  const accentFg = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--color-accent-fg").trim(),
+  );
+  check("dark accent gets light foreground", accentFg === "#ffffff", accentFg);
+
+  const accentBase = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--color-volt-500").trim(),
+  );
+  check("accent colour applied", accentBase === "#1d4ed8", accentBase);
+
+  // The saved domain is what tracked links are shared as
+  await page.goto(`${BASE}/admin/growth`, { waitUntil: "networkidle" });
+  check(
+    "tracked links use the configured domain",
+    (await page.locator("main").innerText()).includes("https://train.ironworks.test/go/"),
+  );
+
+  // An unparseable domain is rejected rather than silently stored
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+  await page.fill('input[name="canonicalUrl"]', "not a domain!!");
+  await page.locator('form:has(input[name="brandName"]) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  check(
+    "invalid domain rejected",
+    (await page.locator("main").innerText()).includes("is not a valid domain"),
+  );
+
+  // 18. Reset branding so the run is idempotent
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+  await page.locator('form:has(button:has-text("Reset to defaults")) button[type="submit"]').click();
+  await page.waitForTimeout(2500);
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  check("branding reset restores defaults", (await page.locator("body").innerText()).includes("Manlet Fitness"));
+
+  // 19. Wrong password rejected
   await ctx.clearCookies();
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
   await page.fill('input[name="email"]', "admin@manlet.fit");

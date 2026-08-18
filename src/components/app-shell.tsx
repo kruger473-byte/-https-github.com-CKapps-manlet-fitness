@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { Brand, type BrandInfo } from "./brand";
 import {
   HomeIcon,
   VideoIcon,
@@ -14,6 +15,7 @@ import {
   ChartIcon,
   CreditCardIcon,
   SettingsIcon,
+  LinkIcon,
   Badge,
 } from "./ui";
 
@@ -41,15 +43,18 @@ const ACCOUNT_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Revenue", icon: ChartIcon },
-  { href: "/admin/growth", label: "Growth", icon: SettingsIcon },
+  { href: "/admin/growth", label: "Growth", icon: LinkIcon },
+  { href: "/admin/settings", label: "Branding", icon: SettingsIcon },
 ];
 
 export function AppShell({
   user,
+  brand,
   children,
   logout,
 }: {
   user: NavUser;
+  brand: BrandInfo;
   children: ReactNode;
   logout: () => Promise<void>;
 }) {
@@ -73,12 +78,7 @@ export function AppShell({
         }`}
       >
         <div className="flex h-16 items-center justify-between border-b border-ink-800 px-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-volt-500 text-sm font-black text-ink-950">
-              MF
-            </span>
-            Manlet
-          </Link>
+          <Brand brand={brand} href="/dashboard" className="min-w-0" />
           <button
             onClick={() => setOpen(false)}
             className="text-ink-400 hover:text-ink-100 lg:hidden"
@@ -173,7 +173,7 @@ export function AppShell({
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
-          <span className="font-bold">Manlet Fitness</span>
+          <span className="truncate font-bold">{brand.brandName}</span>
         </header>
 
         <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">

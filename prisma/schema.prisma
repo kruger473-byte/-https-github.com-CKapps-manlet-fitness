@@ -11,6 +11,37 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// Site settings (branding, domain)
+// ---------------------------------------------------------------------------
+
+/// Single-row table holding everything a creator can rebrand without a deploy.
+/// Always read through `getSiteSettings()`, which falls back to defaults when
+/// the row is missing so a fresh database still renders.
+model SiteSettings {
+  id           String  @id @default("singleton")
+
+  brandName    String  @default("Manlet Fitness")
+  /// Short monogram shown when no logo image is set (1-3 characters).
+  monogram     String  @default("MF")
+  /// Data URI or absolute URL. Replaces the monogram everywhere when present.
+  logoUrl      String?
+  tagline      String  @default("Training, nutrition and coaching that stays yours")
+  metaDescription String @default("Video programs, structured diet plans, a real knowledge base, 1-1 coaching and a member community — sold direct, so the revenue stays with the coach.")
+
+  /// Brand accent as a hex string. Shade and readable-foreground variants are
+  /// derived at render time rather than stored, so they can never drift.
+  accentColor  String  @default("#c8f31d")
+
+  /// Canonical public origin, e.g. https://train.example.com. Used for links
+  /// the app hands to other systems: Stripe redirects, tracked links, OAuth
+  /// callbacks. DNS and TLS are still configured at your host.
+  canonicalUrl String?
+  supportEmail String?
+
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Identity & access
 // ---------------------------------------------------------------------------
 

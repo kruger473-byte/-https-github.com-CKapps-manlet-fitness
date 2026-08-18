@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
+import { getAppUrl } from "@/lib/settings";
 import { formatMoney } from "@/lib/entitlements";
 import { integrationStatus } from "@/lib/integrations/hub";
 import {
@@ -27,6 +27,7 @@ export default async function GrowthPage({
   searchParams: Promise<{ integration?: string }>;
 }) {
   const { integration: integrationMessage } = await searchParams;
+  const appUrl = await getAppUrl();
   const [channels, links, conversions, contentPosts] = await Promise.all([
     db.channel.findMany({ orderBy: { platform: "asc" } }),
     db.trackedLink.findMany({
@@ -127,7 +128,7 @@ export default async function GrowthPage({
       <section className="mb-10">
         <h2 className="mb-1 text-base font-semibold">Tracked links</h2>
         <p className="mb-4 text-sm text-ink-400">
-          Put <code className="text-ink-300">{env.appUrl}/go/&lt;slug&gt;</code> in a bio
+          Put <code className="text-ink-300">{appUrl}/go/&lt;slug&gt;</code> in a bio
           or caption. Every click is recorded and stitched to the signup it eventually
           produces — even weeks later.
         </p>
@@ -157,7 +158,7 @@ export default async function GrowthPage({
                     {links.map((link) => (
                       <tr key={link.id} className="border-b border-ink-800 last:border-0">
                         <td className="px-5 py-3">
-                          <CopyField value={`${env.appUrl}/go/${link.slug}`} />
+                          <CopyField value={`${appUrl}/go/${link.slug}`} />
                           <p className="mt-1 text-xs text-ink-400">→ {link.destination}</p>
                         </td>
                         <td className="px-5 py-3">
