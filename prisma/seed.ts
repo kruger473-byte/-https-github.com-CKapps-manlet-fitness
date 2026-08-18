@@ -562,7 +562,14 @@ async function main() {
   }
 
   // --- exchange -------------------------------------------------------------
-  const threadSpecs = [
+  const threadSpecs: Array<{
+    title: string;
+    body: string;
+    author: number;
+    cat: number;
+    pinned?: boolean;
+    replies: Array<{ author: number | null; body: string; coach?: boolean }>;
+  }> = [
     {
       title: "Down 8kg in 11 weeks — the boring version worked",
       body: "No secret. 2,200 cut plan, three sessions a week, walked more. Posting the numbers in case it helps someone who thinks they need something clever.",
